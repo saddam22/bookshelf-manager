@@ -37,6 +37,28 @@ router.post("/", async (req, res, next) => {
   }
 });
 
+// PATCH /books/:id - বইয়ের তথ্য সম্পাদনা করো
+router.patch("/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid book ID" });
+    }
+    const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
+    const author = typeof req.body.author === "string" ? req.body.author.trim() : "";
+    if (!title || !author) {
+      return res.status(400).json({ message: "Title and author are required" });
+    }
+    const book = await Book.findByIdAndUpdate(
+      id,
+      { $set: { title, author } },
+      { new: true, runValidators: true }
+    );
+    if (!book) return res.status(404).json({ message: "Book not found" });
+    res.status(200).json(book);
+  } catch (error) { next(error); }
+});
+
 // PUT /books/:id - বই Read হিসেবে চিহ্নিত করো
 router.put("/:id", async (req, res, next) => {
   try {

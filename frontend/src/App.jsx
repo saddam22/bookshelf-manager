@@ -12,6 +12,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [category, setCategory] = useState("all");
   const [showForm, setShowForm] = useState(false);
+  const [editingBook, setEditingBook] = useState(null);
 
   const loadBooks = useCallback(async () => {
     try {
@@ -40,6 +41,22 @@ export default function App() {
     setBooks((current) => [data, ...current]);
     setError("");
     setShowForm(false);
+    setEditingBook(null);
+  }
+
+  async function updateBook(bookData) {
+    const id = editingBook?.id || editingBook?._id;
+    const response = await fetch(`${API_URL}/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bookData),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || "Failed to update book");
+    setBooks((current) => current.map((book) => (book.id || book._id) === id ? data : book));
+    setError("");
+    setShowForm(false);
+    setEditingBook(null);
   }
 
   async function markAsRead(id) {
@@ -133,14 +150,14 @@ export default function App() {
                     <p>{book.author || "Unknown author"}</p>
                     <span className={`status-pill ${isRead ? "read" : ""}`}>{isRead ? "Read" : "Unread"}</span>
                     <div className="card-actions">
-                      <button className="icon-button" title="View book details" onClick={() => alert(`${book.title}\n${book.author || "Unknown author"}`)}>◉</button>
+                      <button className="icon-button" title="Edit book" onClick={() => { setEditingBook(book); setShowForm(true); }}>✎</button>
                       <button className="icon-button delete-icon" title="Delete book" onClick={() => deleteBook(book.id || book._id)}>♜</button>
                       <button className={`read-button ${isRead ? "done" : ""}`} onClick={() => !isRead && markAsRead(book.id || book._id)}>{isRead ? "Read Book" : "Mark as Read"}</button>
                     </div>
                   </div>
                 </article>;
               })}
-              <button className="add-card" onClick={() => setShowForm(true)}><span className="plus">+</span><strong>Add New Book</strong><small>Add a new book to<br /> your library</small></button>
+              <button className="add-card" onClick={() => { setEditingBook(null); setShowForm(true); }}><span className="plus">+</span><strong>Add New Book</strong><small>Add a new book to<br /> your library</small></button>
             </div>
           )}
           {!loading && filteredBooks.length === 0 && <div className="empty-state">No books found. Try another search or add a new book.</div>}
@@ -148,8 +165,8 @@ export default function App() {
         </div>
       </section>
 
-      {showForm && <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setShowForm(false)}>
-        <div className="book-modal"><button className="modal-close" onClick={() => setShowForm(false)} aria-label="Close">×</button><h2>Add a new book</h2><p className="modal-subtitle">Add a title to your personal library.</p><BookForm onAdd={addBook} /></div>
+      {showForm && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) { setShowForm(false); setEditingBook(null); } }}>
+        <div className="book-modal"><button className="modal-close" onClick={() => { setShowForm(false); setEditingBook(null); }} aria-label="Close">×</button><h2>{editingBook ? "Edit book" : "Add a new book"}</h2><p className="modal-subtitle">{editingBook ? "Update your book details." : "Add a title to your personal library."}</p><BookForm key={editingBook?.id || editingBook?._id || "new-book"} initialBook={editingBook} onAdd={editingBook ? updateBook : addBook} onCancel={() => { setShowForm(false); setEditingBook(null); }} /></div>
       </div>}
     </main>
   );
