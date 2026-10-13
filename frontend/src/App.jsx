@@ -1,25 +1,24 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import BookForm from "./components/BookForm";
-import BookList from "./components/BookList";
+import "./App.css";
 
-const API_URL = "http://localhost:5000/books";
+const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/books`;
 
 export default function App() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [showForm, setShowForm] = useState(false);
 
   const loadBooks = useCallback(async () => {
     try {
       setError("");
-
       const response = await fetch(API_URL);
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to load books");
-      }
-
+      if (!response.ok) throw new Error(data.message || "Failed to load books");
       setBooks(data);
     } catch (err) {
       setError(err.message || "Cannot connect to backend");
@@ -28,9 +27,7 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    loadBooks();
-  }, [loadBooks]);
+  useEffect(() => { loadBooks(); }, [loadBooks]);
 
   async function addBook(bookData) {
     const response = await fetch(API_URL, {
@@ -38,148 +35,122 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(bookData),
     });
-
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to add book");
-    }
-
+    if (!response.ok) throw new Error(data.message || "Failed to add book");
     setBooks((current) => [data, ...current]);
     setError("");
+    setShowForm(false);
   }
 
   async function markAsRead(id) {
     try {
-      const response = await fetch(`${API_URL}/${id}`, {
-        method: "PUT",
-      });
-
+      const response = await fetch(`${API_URL}/${id}`, { method: "PUT" });
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to update book");
-      }
-
-      setBooks((current) =>
-        current.map((book) => (book.id === id ? data : book))
-      );
+      if (!response.ok) throw new Error(data.message || "Failed to update book");
+      setBooks((current) => current.map((book) => book.id === id ? data : book));
       setError("");
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (err) { setError(err.message); }
   }
 
   async function deleteBook(id) {
+    if (!window.confirm("এই বইটি মুছে ফেলতে চান?")) return;
     try {
-      const response = await fetch(`${API_URL}/${id}`, {
-        method: "DELETE",
-      });
-
+      const response = await fetch(`${API_URL}/${id}`, { method: "DELETE" });
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to delete book");
-      }
-
+      if (!response.ok) throw new Error(data.message || "Failed to delete book");
       setBooks((current) => current.filter((book) => book.id !== id));
       setError("");
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (err) { setError(err.message); }
   }
 
-  const readCount = books.filter((book) => book.status === "read").length;
+  const readCount = books.filter((b) => b.status === "read").length;
+  const categories = [...new Set(books.map((b) => b.category).filter(Boolean))];
+  const filteredBooks = useMemo(() => books.filter((book) => {
+    const q = query.toLowerCase().trim();
+    const matchesQuery = !q || `${book.title || ""} ${book.author || ""}`.toLowerCase().includes(q);
+    const matchesStatus = statusFilter === "all" || book.status === statusFilter;
+    const matchesCategory = category === "all" || book.category === category;
+    return matchesQuery && matchesStatus && matchesCategory;
+  }), [books, query, statusFilter, category]);
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-5 sm:px-6">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-2xl text-white">
-            📚
-          </div>
-
-          <div>
-            <h1 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
-              BookShelf Manager
-            </h1>
-            <p className="text-sm text-slate-500">
-              Your personal reading space
-            </p>
-          </div>
+    <main className="app-shell">
+      <aside className="sidebar">
+        <a className="brand" href="#" aria-label="Bookworm home"><span className="brand-mark">B</span><span>Bookworm</span></a>
+        <nav className="nav-menu">
+          <button className="nav-item"><span>⌂</span>Home</button>
+          <button className="nav-item active"><span>▣</span>Library</button>
+          <button className="nav-item" onClick={() => alert("Community feature coming soon")}><span>♧</span>Community</button>
+          <button className="nav-item" onClick={() => alert("AI Integration feature coming soon")}><span>ϟ</span>AI Integration <span className="nav-chevron">⌄</span></button>
+          <button className="nav-item" onClick={() => alert("Settings feature coming soon")}><span>⚙</span>Settings</button>
+          <button className="nav-item" onClick={() => alert("Help feature coming soon")}><span>ⓘ</span>Help</button>
+        </nav>
+        <div className="profile">
+          <div className="avatar">S</div>
+          <div className="profile-text"><strong>Bookworm Reader</strong><small>My personal library</small></div>
+          <span className="profile-exit">↗</span>
         </div>
-      </header>
+      </aside>
 
-      <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6 sm:py-10">
-        <section>
-          <p className="text-sm font-semibold uppercase tracking-widest text-blue-600">
-            Your Library
-          </p>
-          <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
-            Every book, one place.
-          </h2>
-          <p className="mt-3 text-slate-600">
-            Organize your books and keep track of your reading progress.
-          </p>
-        </section>
+      <section className="workspace">
+        <header className="topbar">
+          <label className="search-box"><span>⌕</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search books by title or author..." /></label>
+          <button className="filter-button" onClick={() => setStatusFilter(statusFilter === "all" ? "unread" : statusFilter === "unread" ? "read" : "all")}>☷ <span>Filter</span></button>
+          <button className="notification" aria-label="Notifications" onClick={() => alert("You're all caught up!")}>♧<i /></button>
+        </header>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <StatCard label="Total Books" value={books.length} />
-          <StatCard label="Books Read" value={readCount} />
-          <StatCard label="Unread Books" value={books.length - readCount} />
-        </section>
-
-        <BookForm onAdd={addBook} />
-
-        <section className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-bold text-slate-900">My Books</h2>
-            <span className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700">
-              {books.length} books
-            </span>
+        <div className="library-content">
+          <div className="heading-row">
+            <h1>Library <span>({books.length})</span></h1>
+            <div className="controls">
+              <div className="status-tabs">
+                <button className={statusFilter === "all" ? "selected" : ""} onClick={() => setStatusFilter("all")}>All Books</button>
+                <button className={statusFilter === "read" ? "selected" : ""} onClick={() => setStatusFilter("read")}>Read</button>
+                <button className={statusFilter === "unread" ? "selected" : ""} onClick={() => setStatusFilter("unread")}>Unread</button>
+              </div>
+              <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter by category">
+                <option value="all">All Categories</option>
+                {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
 
-          {error && (
-            <div
-              role="alert"
-              className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
-            >
-              {error}
-              <button
-                onClick={loadBooks}
-                className="ml-3 font-bold underline"
-              >
-                Retry
-              </button>
+          <div className="summary-line"><span>{filteredBooks.length} books in your collection</span><span>{readCount} read · {books.length - readCount} unread</span></div>
+          {error && <div className="error-banner" role="alert">{error}<button onClick={loadBooks}>Retry</button></div>}
+
+          {loading ? <div className="empty-state">Loading your library…</div> : (
+            <div className="book-grid">
+              {filteredBooks.map((book) => {
+                const isRead = book.status === "read";
+                const cover = book.coverUrl || book.imageUrl || book.cover || book.image;
+                return <article className="book-card" key={book.id || book._id}>
+                  <div className="cover-stage">
+                    {cover ? <img className="book-cover" src={cover} alt={`${book.title} cover`} /> : <div className={`cover-placeholder cover-${(book.title || "book").length % 5}`}><span>{book.title || "BOOK"}</span><small>{book.author || "BOOKWORM EDITION"}</small></div>}
+                    <button className="card-menu" aria-label="Delete book" title="Delete book" onClick={() => deleteBook(book.id || book._id)}>⋮</button>
+                  </div>
+                  <div className="book-info">
+                    <h2 title={book.title}>{book.title}</h2>
+                    <p>{book.author || "Unknown author"}</p>
+                    <span className={`status-pill ${isRead ? "read" : ""}`}>{isRead ? "Read" : "Unread"}</span>
+                    <div className="card-actions">
+                      <button className="icon-button" title="View book details" onClick={() => alert(`${book.title}\n${book.author || "Unknown author"}`)}>◉</button>
+                      <button className="icon-button delete-icon" title="Delete book" onClick={() => deleteBook(book.id || book._id)}>♜</button>
+                      <button className={`read-button ${isRead ? "done" : ""}`} onClick={() => !isRead && markAsRead(book.id || book._id)}>{isRead ? "Read Book" : "Mark as Read"}</button>
+                    </div>
+                  </div>
+                </article>;
+              })}
+              <button className="add-card" onClick={() => setShowForm(true)}><span className="plus">+</span><strong>Add New Book</strong><small>Add a new book to<br /> your library</small></button>
             </div>
           )}
+          {!loading && filteredBooks.length === 0 && <div className="empty-state">No books found. Try another search or add a new book.</div>}
+          <footer className="footer-note">Bookworm · Your personal reading space</footer>
+        </div>
+      </section>
 
-          {loading ? (
-            <p className="rounded-xl bg-white p-8 text-center text-slate-500">
-              Loading your books...
-            </p>
-          ) : (
-            <BookList
-              books={books}
-              onRead={markAsRead}
-              onDelete={deleteBook}
-            />
-          )}
-        </section>
-
-        <footer className="border-t border-slate-200 pt-6 text-center text-sm text-slate-500">
-          BookShelf Manager · MERN Stack Practical Project
-        </footer>
-      </div>
+      {showForm && <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setShowForm(false)}>
+        <div className="book-modal"><button className="modal-close" onClick={() => setShowForm(false)} aria-label="Close">×</button><h2>Add a new book</h2><p className="modal-subtitle">Add a title to your personal library.</p><BookForm onAdd={addBook} /></div>
+      </div>}
     </main>
-  );
-}
-
-function StatCard({ label, value }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-extrabold text-slate-900">{value}</p>
-    </div>
   );
 }
